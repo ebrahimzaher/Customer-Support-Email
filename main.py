@@ -4,7 +4,7 @@ from langgraph.types import Command
 
 load_dotenv() 
 
-from src import app  
+from agent import app  
 
 def main():
     print("📸 Generating graph image...")

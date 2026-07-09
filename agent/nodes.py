@@ -6,21 +6,40 @@ import uuid
 
 from .state import EmailAgentState, EmailClassification
 
-llm = ChatGroq(model="openai/gpt-oss-120b")
+llm = ChatGroq(model="llama-3.3-70b-versatile")
 
-def read_email(state: EmailAgentState) -> EmailAgentState:
-    pass
+def read_email(state: EmailAgentState) -> dict:
+    """Read and validate email input. Provides sample data if fields are missing (for Studio testing)."""
+    updates = {}
+    
+    if not state.get('email_content'):
+        updates['email_content'] = "I was charged twice for my subscription this month. This is urgent and I need a refund immediately!"
+    
+    if not state.get('sender_email'):
+        updates['sender_email'] = "customer@example.com"
+    
+    if not state.get('email_id'):
+        updates['email_id'] = f"email_{uuid.uuid4().hex[:8]}"
+    
+    return updates
+
 
 def classify_intent(state: EmailAgentState) -> EmailAgentState:
     structured_llm = llm.with_structured_output(EmailClassification)
     
     classification_prompt = f"""
-    Analyze this customer email and classify it:
+    You are an expert customer support routing AI.
+    Your ONLY job is to analyze the email and extract the classification data by calling the provided tool.
+    Do NOT output any conversational text. ONLY use the tool.
+    
+    You MUST use EXACTLY one of these values for each field:
+    - intent: "question", "bug", "billing", "feature", or "complex"
+    - urgency: "low", "medium", "high", or "critical"
+    - topic: a short string describing the topic
+    - summary: a brief summary of the email
     
     Email: {state.get('email_content')}
     From: {state.get('sender_email')}
-    
-    Provide classification, including intent, urgency, topic, and summary
     """
     
     classification = structured_llm.invoke(classification_prompt)
@@ -94,11 +113,11 @@ def human_review(state: EmailAgentState) -> Command[Literal["send_reply", "__end
     classification = state.get('classification', {})
     
     human_decision = interrupt({
-        "email_id": state['email_id'],
-        "original_email": state['email_content'],
-        "draft_response": state['draft_response'],
-        "urgency": classification['urgency'],
-        "intent": classification['intent'],
+        "email_id": state.get('email_id', 'unknown'),
+        "original_email": state.get('email_content', ''),
+        "draft_response": state.get('draft_response', ''),
+        "urgency": classification.get('urgency', 'unknown'),
+        "intent": classification.get('intent', 'unknown'),
         "action": "Please review and approve/edit this response"
     })
     
